@@ -760,6 +760,10 @@ body.playlist-active .track-card.selected {
     position: relative;
     aspect-ratio: 1;
     overflow: hidden;
+    max-width: 280px;
+    margin: 1.5rem auto 0;
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
 }
 
 .detail-cover {

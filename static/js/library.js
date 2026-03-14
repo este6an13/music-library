@@ -365,6 +365,16 @@ const Library = (function () {
         document.body.classList.add('modal-open');
     }
 
+    function openRandomSong() {
+        if (!allTracks || allTracks.length === 0) {
+            alert("Your library is empty. Add some tracks first!");
+            return;
+        }
+        const randomIndex = Math.floor(Math.random() * allTracks.length);
+        const randomTrack = allTracks[randomIndex];
+        openDetail(randomTrack.deezer_id);
+    }
+
     function toggleDetailPreview() {
         const audio = document.getElementById('detail-audio');
         const icon = document.getElementById('detail-play-icon');
@@ -969,6 +979,7 @@ const Library = (function () {
         groupBy,
         selectBrowseItem,
         openDetail,
+        openRandomSong,
         toggleDetailPreview,
         toggleInlinePlay,
         deleteTrack,
