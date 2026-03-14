@@ -326,6 +326,42 @@ main {
     opacity: 1;
 }
 
+/* Inline play button on cards */
+.card-play-btn {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: all var(--transition);
+    box-shadow: 0 2px 12px var(--accent-glow);
+    z-index: 2;
+}
+
+.card-play-btn .material-symbols-outlined {
+    font-size: 1.2rem;
+}
+
+.track-card:hover .card-play-btn {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.card-play-btn:hover {
+    transform: scale(1.15) !important;
+    box-shadow: 0 4px 20px var(--accent-glow);
+}
+
 .track-card-info {
     padding: 0.75rem;
 }

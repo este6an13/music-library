@@ -10,7 +10,9 @@ const Library = (function () {
     let currentTracks = [];
     let currentQuery = '';
     let currentTag = '';
-    let currentGroup = 'none'; // 'none' | 'artist' | 'year' | 'tag'
+    let currentGroup = 'none'; // 'none' | 'artist' | 'year' | 'tag' | 'album'
+    let inlineAudio = null;    // currently playing inline audio element
+    let inlinePlayingId = null; // deezer_id of inline-playing track
 
     /* ── Initialization ── */
     function init(tracks) {
@@ -92,6 +94,12 @@ const Library = (function () {
                     html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">♪</div>';
                 }
                 html += '<div class="track-overlay"></div>';
+                // Inline play button
+                if (track.preview_url) {
+                    html += '<button class="card-play-btn" data-deezer-id="' + escapeAttr(track.deezer_id) + '" onclick="event.stopPropagation(); Library.toggleInlinePlay(\'' + escapeAttr(track.deezer_id) + '\', this)" title="Play preview">';
+                    html += '<span class="material-symbols-outlined">' + (inlinePlayingId === track.deezer_id ? 'pause' : 'play_arrow') + '</span>';
+                    html += '</button>';
+                }
                 html += '</div>';
                 html += '<div class="track-card-info">';
                 html += '<div class="track-card-title">' + escapeHtml(track.title) + '</div>';
@@ -120,6 +128,8 @@ const Library = (function () {
                 keys = [t.artist || 'Unknown'];
             } else if (currentGroup === 'year') {
                 keys = [t.release_year ? String(t.release_year) : 'Unknown'];
+            } else if (currentGroup === 'album') {
+                keys = [t.album || 'Unknown'];
             } else if (currentGroup === 'tag') {
                 keys = (t.tags && t.tags.length > 0) ? t.tags : ['Untagged'];
             }
@@ -208,6 +218,10 @@ const Library = (function () {
         const audio = document.getElementById('detail-audio');
         const icon = document.getElementById('detail-play-icon');
         if (!audio) return;
+
+        // Stop any inline audio first
+        stopInlineAudio();
+
         if (audio.paused) {
             audio.play();
             icon.textContent = 'pause';
@@ -216,6 +230,46 @@ const Library = (function () {
             icon.textContent = 'play_arrow';
         }
         audio.onended = () => { icon.textContent = 'play_arrow'; };
+    }
+
+    /* ── Inline Play (on track cards) ── */
+    function stopInlineAudio() {
+        if (inlineAudio) {
+            inlineAudio.pause();
+            inlineAudio.currentTime = 0;
+            // Reset icon on the old button
+            const oldBtn = document.querySelector('.card-play-btn[data-deezer-id="' + inlinePlayingId + '"] .material-symbols-outlined');
+            if (oldBtn) oldBtn.textContent = 'play_arrow';
+            inlineAudio = null;
+            inlinePlayingId = null;
+        }
+    }
+
+    function toggleInlinePlay(deezerId, btn) {
+        const icon = btn.querySelector('.material-symbols-outlined');
+
+        // If this track is already playing, stop it
+        if (inlinePlayingId === deezerId && inlineAudio && !inlineAudio.paused) {
+            stopInlineAudio();
+            return;
+        }
+
+        // Stop any other playing audio
+        stopInlineAudio();
+
+        const track = allTracks.find(t => t.deezer_id === deezerId);
+        if (!track || !track.preview_url) return;
+
+        inlineAudio = new Audio(track.preview_url);
+        inlinePlayingId = deezerId;
+        icon.textContent = 'pause';
+
+        inlineAudio.play();
+        inlineAudio.onended = () => {
+            icon.textContent = 'play_arrow';
+            inlinePlayingId = null;
+            inlineAudio = null;
+        };
     }
 
     /* ── Delete Track ── */
@@ -276,7 +330,7 @@ const Library = (function () {
         currentGroup = mode;
 
         // Update button states
-        ['artist', 'year', 'tag'].forEach(m => {
+        ['artist', 'year', 'tag', 'album'].forEach(m => {
             const btn = document.getElementById('group-' + m + '-btn');
             if (btn) btn.classList.toggle('active', m === mode);
         });
@@ -288,8 +342,8 @@ const Library = (function () {
 
         if (indicator && text) {
             if (mode !== 'none') {
-                const labels = { artist: 'Artist', year: 'Year', tag: 'Tag' };
-                const icons = { artist: 'person', year: 'calendar_month', tag: 'label' };
+                const labels = { artist: 'Artist', year: 'Year', tag: 'Tag', album: 'Album' };
+                const icons = { artist: 'person', year: 'calendar_month', tag: 'label', album: 'album' };
                 text.textContent = 'by ' + labels[mode];
                 if (icon) icon.textContent = icons[mode];
                 indicator.style.display = 'inline-flex';
@@ -331,6 +385,7 @@ const Library = (function () {
         groupBy,
         openDetail,
         toggleDetailPreview,
+        toggleInlinePlay,
         deleteTrack,
     };
 })();
