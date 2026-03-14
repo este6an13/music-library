@@ -322,10 +322,27 @@ const Library = (function () {
 
         // Links
         html += '<div class="detail-links">';
-        html += '<a href="https://www.deezer.com/track/' + escapeAttr(track.deezer_id) + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();">';
-        html += '<span class="material-symbols-outlined" style="font-size:1rem;">open_in_new</span> Deezer</a>';
-        html += '<button class="detail-delete" onclick="event.stopPropagation(); Library.deleteTrack(\'' + escapeAttr(track.deezer_id) + '\')">';
-        html += '<span class="material-symbols-outlined" style="font-size:1rem;">delete</span> Remove</button>';
+        
+        let queryStr = encodeURIComponent(track.artist + ' ' + track.title);
+        if (track.isrc) {
+             queryStr = "isrc:" + track.isrc;
+        }
+
+        html += '<a href="https://www.deezer.com/track/' + escapeAttr(track.deezer_id) + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Open in Deezer">';
+        html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">graphic_eq</span><span class="detail-link-text">Deezer</span></a>';
+        
+        html += '<a href="https://open.spotify.com/search/' + queryStr + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Search on Spotify">';
+        html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">headphones</span><span class="detail-link-text">Spotify</span></a>';
+
+        const appleQuery = encodeURIComponent(track.title + ' ' + track.artist);
+        html += '<a href="https://music.apple.com/WebObjects/MZStore.woa/wa/search?term=' + appleQuery + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Search on Apple Music">';
+        html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">music_note</span><span class="detail-link-text">Apple</span></a>';
+
+        html += '<a href="https://music.youtube.com/search?q=' + appleQuery + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Search on YouTube Music">';
+        html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">play_circle</span><span class="detail-link-text">YouTube</span></a>';
+
+        html += '<button class="detail-delete" onclick="event.stopPropagation(); Library.deleteTrack(\'' + escapeAttr(track.deezer_id) + '\')" title="Remove from Library">';
+        html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">delete</span><span class="detail-link-text">Remove</span></button>';
         html += '</div>';
 
         html += '</div></div>';

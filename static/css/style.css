@@ -686,7 +686,7 @@ main {
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    padding: 0.55rem;
+    padding: 0.5rem 0.2rem;
     border-radius: var(--radius-sm);
     background: var(--bg-glass);
     border: 1px solid var(--border);
@@ -733,7 +733,7 @@ main {
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    padding: 0.55rem;
+    padding: 0.5rem 0.2rem;
     border-radius: var(--radius-sm);
     background: var(--error-bg);
     border: 1px solid rgba(240, 86, 86, 0.3);
@@ -1169,6 +1169,10 @@ body.modal-open {
 
     .modal-content {
         width: 95%;
+    }
+
+    .detail-link-text {
+        display: none;
     }
 }
 
