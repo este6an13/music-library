@@ -73,9 +73,14 @@
 <div id="playlist-panel" class="playlist-panel" style="display: none;">
     <div class="playlist-panel-header">
         <h3 style="font-family: var(--font-serif); font-size: 1.2rem; margin: 0;">Create Playlist</h3>
-        <button type="button" class="nav-icon-btn" onclick="Library.togglePlaylistMode()" title="Close" style="color: var(--text-muted); padding: 0.2rem;">
-            <span class="material-symbols-outlined">close</span>
-        </button>
+        <div style="display: flex; gap: 0.2rem;">
+            <button type="button" class="nav-icon-btn" onclick="Library.openRandomPlaylistModal()" title="Random Mix" style="color: var(--accent); padding: 0.2rem;">
+                <span class="material-symbols-outlined">shuffle</span>
+            </button>
+            <button type="button" class="nav-icon-btn" onclick="Library.togglePlaylistMode()" title="Close" style="color: var(--text-muted); padding: 0.2rem;">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
     </div>
     <div class="playlist-panel-content">
         <input type="text" id="playlist-name-input" class="form-input" placeholder="Playlist Name (e.g. Summer Mix)" style="margin-bottom: 1rem; padding: 0.6rem; font-size: 0.9rem;">

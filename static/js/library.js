@@ -802,6 +802,151 @@ const Library = (function () {
         URL.revokeObjectURL(url);
     }
 
+    /* ── Random Mix Generator ── */
+    function openRandomPlaylistModal() {
+        if (!playlistMode) return;
+
+        // Gather unique tags and artists
+        const tagSet = new Set();
+        const artistSet = new Set();
+        allTracks.forEach(t => {
+            if (t.tags) t.tags.forEach(tag => tagSet.add(tag));
+            if (t.artist) artistSet.add(t.artist);
+        });
+        const uniqueTags = Array.from(tagSet).sort();
+        const uniqueArtists = Array.from(artistSet).sort((a,b) => a.localeCompare(b));
+
+        let html = '<div class="detail-card" style="padding: 1.5rem;">';
+        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">';
+        html += '<h2 style="font-family: var(--font-serif); margin: 0; font-size: 1.4rem;">Random Mix</h2>';
+        html += '<button class="nav-icon-btn" onclick="closeModal()" title="Close" style="color: var(--text-muted);"><span class="material-symbols-outlined">close</span></button>';
+        html += '</div>';
+
+        // Size slider
+        html += '<div class="random-mix-section">';
+        html += '<label class="random-mix-label">Number of Tracks: <span id="random-mix-size-val" class="random-mix-slider-val">20</span></label>';
+        html += '<input type="range" id="random-mix-size" class="random-mix-slider" min="1" max="100" value="20" oninput="document.getElementById(\'random-mix-size-val\').innerText=this.value">';
+        html += '</div>';
+
+        // Artist Search
+        html += '<div class="random-mix-section">';
+        html += '<label class="random-mix-label">Include Artists (Optional)</label>';
+        html += '<div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">';
+        html += '<input type="text" id="random-artist-input" class="artist-search-input" list="random-artist-list" placeholder="Search artists..." onkeydown="if(event.key===\'Enter\'){ event.preventDefault(); Library.addRandomMixArtist(); }">';
+        html += '<datalist id="random-artist-list">';
+        uniqueArtists.forEach(a => html += `<option value="${escapeAttr(a)}">`);
+        html += '</datalist>';
+        html += '<button type="button" class="btn btn-secondary" onclick="Library.addRandomMixArtist()">Add</button>';
+        html += '</div>';
+        html += '<div id="random-artist-chips" class="random-chip-container"></div>';
+        html += '</div>';
+
+        // Tag Filters
+        html += '<div class="random-mix-section">';
+        html += '<label class="random-mix-label">Include Tags (Optional)</label>';
+        html += '<div class="random-chip-container">';
+        uniqueTags.forEach(tag => {
+            html += `<button type="button" class="random-chip tag-filter-chip" onclick="this.classList.toggle('selected')">${escapeHtml(tag)}</button>`;
+        });
+        if (uniqueTags.length === 0) html += '<span style="color: var(--text-muted); font-size: 0.8rem;">No tags available</span>';
+        html += '</div>';
+        html += '<p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; line-height: 1.4;">If no artists or tags are selected, the mix will be truly random across all songs. If filters are active, the pool will contain songs that match <strong>any</strong> selected artist OR tag.</p>';
+        html += '</div>';
+
+        // Actions
+        html += '<div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">';
+        html += '<button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>';
+        html += '<button type="button" class="btn btn-primary" onclick="Library.generateRandomPlaylist()">Generate</button>';
+        html += '</div>';
+
+        html += '</div>';
+
+        const modalOverlay = document.getElementById('track-modal');
+        const modalContent = document.getElementById('modal-content');
+        modalContent.innerHTML = html;
+        modalOverlay.classList.add('active');
+    }
+
+    function addRandomMixArtist() {
+        const input = document.getElementById('random-artist-input');
+        const val = input.value.trim();
+        if (!val) return;
+        
+        const container = document.getElementById('random-artist-chips');
+        // Check if already added
+        const existing = Array.from(container.querySelectorAll('.random-chip')).map(el => el.textContent.replace(' ×', '').trim());
+        if (existing.includes(val)) {
+            input.value = '';
+            return;
+        }
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'random-chip artist-filter-chip selected';
+        btn.innerHTML = `${escapeHtml(val)} &times;`;
+        btn.onclick = function() { this.remove(); };
+        container.appendChild(btn);
+        
+        input.value = '';
+    }
+
+    function generateRandomPlaylist() {
+        // Collect filters
+        const sizeInput = document.getElementById('random-mix-size');
+        if (!sizeInput) return;
+        const size = parseInt(sizeInput.value, 10);
+        
+        const artistChips = Array.from(document.querySelectorAll('#random-artist-chips .artist-filter-chip'));
+        const targetArtists = new Set(artistChips.map(el => el.textContent.replace(' ×', '').trim()).filter(Boolean));
+        
+        const tagChips = Array.from(document.querySelectorAll('.tag-filter-chip.selected'));
+        const targetTags = new Set(tagChips.map(el => el.textContent.trim()).filter(Boolean));
+
+        const hasFilters = targetArtists.size > 0 || targetTags.size > 0;
+
+        // Compute pool
+        let pool = [];
+        if (!hasFilters) {
+            pool = allTracks.slice();
+        } else {
+            pool = allTracks.filter(t => {
+                const matchesArtist = t.artist && targetArtists.has(t.artist);
+                const matchesTag = t.tags && t.tags.some(tag => targetTags.has(tag));
+                return matchesArtist || matchesTag;
+            });
+        }
+
+        if (pool.length === 0) {
+            alert('No tracks match your selected filters. Try broadening your selection.');
+            return;
+        }
+
+        // Fisher-Yates shuffle the pool
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const temp = pool[i];
+            pool[i] = pool[j];
+            pool[j] = temp;
+        }
+
+        const selectedSubset = pool.slice(0, size);
+
+        // Update UI
+        Library.clearPlaylist(); // Clear previous selections & UI
+        
+        selectedSubset.forEach(t => selectedPlaylistTracks.add(String(t.deezer_id)));
+        
+        closeModal();
+        updatePlaylistUI();
+
+        // Refresh the grid to show checked states
+        if (browseMode !== 'none' && !browseFilter) {
+            renderBrowseGrid(browseMode);
+        } else {
+            renderTrackGrid(currentTracks);
+        }
+    }
+
     /* ── Helpers ── */
     function escapeHtml(str) {
         if (!str) return '';
@@ -834,6 +979,9 @@ const Library = (function () {
         togglePlaylistMode,
         toggleTrackSelection,
         clearPlaylist,
-        exportPlaylist
+        exportPlaylist,
+        openRandomPlaylistModal,
+        addRandomMixArtist,
+        generateRandomPlaylist
     };
 })();
