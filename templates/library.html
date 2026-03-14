@@ -41,6 +41,10 @@
             onclick="Library.openRandomSong()">
             <span class="material-symbols-outlined">explore</span>
         </button>
+        <button type="button" class="nav-btn-circle nav-icon-btn" id="radio-mode-btn" title="Radio Mode"
+            onclick="Library.startRadioMode()">
+            <span class="material-symbols-outlined">sensors</span>
+        </button>
     </div>
 </div>
 <span class="nav-count" id="track-count"></span>
@@ -123,7 +127,7 @@
 <script>
     window.__TRACKS = {{ tracks_json | safe }};
 </script>
-<script src="/static/js/library.js?v=6"></script>
+<script src="/static/js/library.js?v=7"></script>
 <script>
     (function () {
         function boot() {

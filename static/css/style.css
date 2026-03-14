@@ -1508,3 +1508,167 @@ body.modal-open {
         gap: 0.6rem;
     }
 }
+
+/* ── Now Playing / Global Audio Bar ── */
+.now-playing-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(10, 10, 12, 0.85);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.5rem;
+    z-index: 999;
+    transform: translateY(100%);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.now-playing-bar.active {
+    transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+}
+
+.np-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.np-cover-wrapper {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+    background: var(--bg-hover);
+}
+
+.np-cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.np-playing-fx {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity var(--transition);
+}
+
+.now-playing-bar.is-playing .np-playing-fx {
+    opacity: 1;
+}
+
+.np-playing-fx .bar {
+    width: 3px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 2px;
+    animation: eq 1.2s ease-in-out infinite alternate;
+}
+
+.np-playing-fx .bar:nth-child(1) { animation-delay: 0s; height: 8px; }
+.np-playing-fx .bar:nth-child(2) { animation-delay: 0.2s; height: 16px; }
+.np-playing-fx .bar:nth-child(3) { animation-delay: 0.4s; height: 10px; }
+
+@keyframes eq {
+    0% { transform: scaleY(0.5); }
+    100% { transform: scaleY(1); }
+}
+
+.np-text {
+    min-width: 0;
+}
+
+.np-title {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.np-artist {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.np-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    justify-content: center;
+}
+
+.np-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    justify-content: flex-end;
+}
+
+.np-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+}
+
+.np-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.1);
+}
+
+.np-play-btn {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    width: 48px;
+    height: 48px;
+}
+
+.np-play-btn:hover {
+    background: var(--text-primary);
+    transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+    .now-playing-bar {
+        padding: 0.5rem 1rem;
+    }
+    .np-actions {
+        display: none;
+    }
+    .np-info {
+        flex: 2;
+    }
+}

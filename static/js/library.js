@@ -12,8 +12,13 @@ const Library = (function () {
     let currentTag = '';
     let browseMode = 'none';     // 'none' | 'artist' | 'year' | 'tag' | 'album'
     let browseFilter = null;     // { mode: 'artist', value: 'Daft Punk' } when drilled in
-    let inlineAudio = null;
-    let inlinePlayingId = null;
+
+    /* ── Global Audio & Radio State ── */
+    let globalAudio = null;
+    let currentPlayingId = null;
+    let isRadioMode = false;
+    let radioHistory = [];    // Array of deezer_id strings
+    let radioQueue = [];      // Future queue if needed, though we primarily generate next-up on the fly
 
     /* ── Playlist State ── */
     let playlistMode = false;
@@ -22,6 +27,22 @@ const Library = (function () {
     /* ── Initialization ── */
     function init(tracks) {
         allTracks = tracks;
+
+        // Initialize Global Audio Events
+        globalAudio = document.getElementById('global-audio');
+        if (globalAudio) {
+            globalAudio.addEventListener('play', updateGlobalAudioUI);
+            globalAudio.addEventListener('pause', updateGlobalAudioUI);
+            globalAudio.addEventListener('ended', () => {
+                updateGlobalAudioUI();
+                if (isRadioMode) {
+                    playNextRadioTrack();
+                } else {
+                    stopGlobalAudio();
+                }
+            });
+        }
+
         applyFiltersAndRender();
     }
 
@@ -112,7 +133,7 @@ const Library = (function () {
             html += '<div class="track-overlay"></div>';
             if (track.preview_url) {
                 html += '<button class="card-play-btn" data-deezer-id="' + escapeAttr(track.deezer_id) + '" onclick="event.stopPropagation(); Library.toggleInlinePlay(\'' + escapeAttr(track.deezer_id) + '\', this)" title="Play preview">';
-                html += '<span class="material-symbols-outlined">' + (inlinePlayingId === track.deezer_id ? 'pause' : 'play_arrow') + '</span>';
+                html += '<span class="material-symbols-outlined">' + (currentPlayingId === track.deezer_id ? 'pause' : 'play_arrow') + '</span>';
                 html += '</button>';
             }
             html += '</div>';
@@ -376,57 +397,223 @@ const Library = (function () {
     }
 
     function toggleDetailPreview() {
-        const audio = document.getElementById('detail-audio');
-        const icon = document.getElementById('detail-play-icon');
-        if (!audio) return;
+        if (!currentPlayingId) return;
+        toggleGlobalPlay();
+    }
 
-        stopInlineAudio();
-
-        if (audio.paused) {
-            audio.play();
-            icon.textContent = 'pause';
+    /* ── Global Audio Player Logic ── */
+    function toggleGlobalPlay() {
+        if (!globalAudio || !globalAudio.src) return;
+        
+        if (globalAudio.paused) {
+            globalAudio.play();
         } else {
-            audio.pause();
+            globalAudio.pause();
+        }
+        updateGlobalAudioUI();
+    }
+
+    function stopGlobalAudio() {
+        globalAudio.pause();
+        globalAudio.currentTime = 0;
+        currentPlayingId = null;
+        isRadioMode = false;
+        
+        // Hide bar
+        document.getElementById('now-playing-bar').classList.remove('active');
+        document.getElementById('now-playing-bar').classList.remove('is-playing');
+        
+        // Reset all grid buttons
+        document.querySelectorAll('.card-play-btn .material-symbols-outlined').forEach(icon => {
             icon.textContent = 'play_arrow';
-        }
-        audio.onended = () => { icon.textContent = 'play_arrow'; };
+        });
+        // Reset modal button if open
+        const modalIcon = document.getElementById('detail-play-icon');
+        if (modalIcon) modalIcon.textContent = 'play_arrow';
     }
 
-    /* ── Inline Play (on track cards) ── */
-    function stopInlineAudio() {
-        if (inlineAudio) {
-            inlineAudio.pause();
-            inlineAudio.currentTime = 0;
-            const oldBtn = document.querySelector('.card-play-btn[data-deezer-id="' + inlinePlayingId + '"] .material-symbols-outlined');
-            if (oldBtn) oldBtn.textContent = 'play_arrow';
-            inlineAudio = null;
-            inlinePlayingId = null;
-        }
-    }
-
-    function toggleInlinePlay(deezerId, btn) {
-        const icon = btn.querySelector('.material-symbols-outlined');
-
-        if (inlinePlayingId === deezerId && inlineAudio && !inlineAudio.paused) {
-            stopInlineAudio();
+    async function playTrack(deezerId) {
+        const track = allTracks.find(t => t.deezer_id === deezerId);
+        if (!track) {
+            console.warn("Track not found in library.");
             return;
         }
 
-        stopInlineAudio();
+        if (currentPlayingId === deezerId) {
+            toggleGlobalPlay();
+            return;
+        }
 
-        const track = allTracks.find(t => t.deezer_id === deezerId);
-        if (!track || !track.preview_url) return;
+        currentPlayingId = deezerId;
+        
+        // Eagerly update UI
+        document.getElementById('np-title').textContent = track.title;
+        document.getElementById('np-artist').textContent = track.artist;
+        if (track.cover) {
+            document.getElementById('np-cover').src = '/' + track.cover;
+        } else {
+            document.getElementById('np-cover').src = '';
+        }
+        document.getElementById('now-playing-bar').classList.add('active');
+        
+        // Show loading state while fetching fresh URL (optional UI flair, or simply enforce play icon)
+        const npIcon = document.getElementById('np-play-icon');
+        if (npIcon) npIcon.textContent = 'hourglass_empty';
 
-        inlineAudio = new Audio(track.preview_url);
-        inlinePlayingId = deezerId;
-        icon.textContent = 'pause';
+        try {
+            const resp = await fetch('/api/fetch-track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deezer_id: deezerId })
+            });
+            if (!resp.ok) throw new Error("Network request failed");
+            const freshData = await resp.json();
+            
+            if (!freshData.preview_url) {
+                alert("No preview is available for this track on Deezer.");
+                stopGlobalAudio();
+                return;
+            }
+            // Update the stored url so next time it might work without fetch if played immediately (though we always fetch)
+            track.preview_url = freshData.preview_url;
+            
+            globalAudio.src = freshData.preview_url;
+            await globalAudio.play();
+        } catch (e) {
+            console.error("Error loading fresh preview:", e);
+            alert("Could not load song preview from Deezer.");
+            stopGlobalAudio();
+            return;
+        }
 
-        inlineAudio.play();
-        inlineAudio.onended = () => {
+        // Push to history if we're naturally navigating or starting
+        if (radioHistory[radioHistory.length - 1] !== deezerId) {
+            radioHistory.push(deezerId);
+        }
+        updateGlobalAudioUI();
+    }
+
+    function updateGlobalAudioUI() {
+        const isPaused = globalAudio.paused;
+        const npIcon = document.getElementById('np-play-icon');
+        const npBar = document.getElementById('now-playing-bar');
+        
+        if (npIcon) npIcon.textContent = isPaused ? 'play_arrow' : 'pause';
+        if (isPaused) {
+            npBar.classList.remove('is-playing');
+        } else {
+            npBar.classList.add('is-playing');
+        }
+
+        // Reset all secondary UI buttons
+        document.querySelectorAll('.card-play-btn .material-symbols-outlined').forEach(icon => {
             icon.textContent = 'play_arrow';
-            inlinePlayingId = null;
-            inlineAudio = null;
-        };
+        });
+        const activeCardBtn = document.querySelector(`.card-play-btn[data-deezer-id="${currentPlayingId}"] .material-symbols-outlined`);
+        if (activeCardBtn) activeCardBtn.textContent = isPaused ? 'play_arrow' : 'pause';
+
+        const modalIcon = document.getElementById('detail-play-icon');
+        if (modalIcon) modalIcon.textContent = isPaused ? 'play_arrow' : 'pause';
+    }
+
+
+
+    function toggleInlinePlay(deezerId, btn) {
+        // If user clicks a track in the grid, disable radio mode so it doesn't auto-skip when ended.
+        isRadioMode = false; 
+        playTrack(deezerId);
+    }
+
+    /* ── Autoplay Radio Engine ── */
+    function startRadioMode() {
+        if (!allTracks || allTracks.length === 0) {
+            alert("Library is empty. Cannot start radio.");
+            return;
+        }
+        isRadioMode = true;
+        // Start with a totally random track if not already playing
+        let startIndex = Math.floor(Math.random() * allTracks.length);
+        if (currentPlayingId) {
+            // Already playing something, just ensure radio mode is active and we continue.
+            alert("Radio mode activated from current track.");
+            return;
+        }
+        playTrack(allTracks[startIndex].deezer_id);
+    }
+
+    function playPrevRadioTrack() {
+        if (radioHistory.length > 1) {
+            // pop current
+            radioHistory.pop();
+            // get previous
+            const prevId = radioHistory[radioHistory.length - 1];
+            playTrack(prevId);
+            isRadioMode = true; // ensure it stays on
+        } else {
+            // Just restart current song
+            globalAudio.currentTime = 0;
+            globalAudio.play();
+        }
+    }
+
+    function playNextRadioTrack(manualSkip = false) {
+        if (!isRadioMode && !manualSkip) return; // shouldn't happen via organic ended event but safety check
+        isRadioMode = true; // force if manual skip
+        
+        const currentTrack = allTracks.find(t => t.deezer_id === currentPlayingId);
+        let bestScore = -1;
+        let nextTrackId = null;
+
+        // Ensure we only select from tracks possessing a preview URL and not recently played
+        const recentHistory = radioHistory.slice(-10); // Don't repeat last 10 songs
+        
+        const candidatePool = allTracks.filter(t => t.preview_url && !recentHistory.includes(t.deezer_id));
+        
+        if (candidatePool.length === 0) {
+            // We exhausted the pool or the library is very small. Clear history and pick randomly.
+            radioHistory = [currentPlayingId];
+            const fallbackPool = allTracks.filter(t => t.preview_url && t.deezer_id !== currentPlayingId);
+            if (fallbackPool.length > 0) {
+                nextTrackId = fallbackPool[Math.floor(Math.random() * fallbackPool.length)].deezer_id;
+            } else {
+                stopGlobalAudio();
+                return; // Nothing else to play
+            }
+        } else {
+            // Score candidates
+            candidatePool.forEach(candidate => {
+                let score = 0;
+                if (currentTrack) {
+                    // +5 matching artist
+                    if (currentTrack.artist === candidate.artist) score += 5;
+                    // +2 per matching tag
+                    if (currentTrack.tags && candidate.tags) {
+                        const commonTags = currentTrack.tags.filter(tag => candidate.tags.includes(tag));
+                        score += (commonTags.length * 2);
+                    }
+                    // +3 within 3 years, +1 within 10 years
+                    if (currentTrack.release_year && candidate.release_year) {
+                        const diff = Math.abs(currentTrack.release_year - candidate.release_year);
+                        if (diff <= 3) score += 3;
+                        else if (diff <= 10) score += 1;
+                    }
+                }
+                
+                // Add Temperature (0.0 to 3.0 points) to break deterministic loops
+                score += (Math.random() * 3.0);
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    nextTrackId = candidate.deezer_id;
+                }
+            });
+        }
+        
+        if (nextTrackId) {
+            playTrack(nextTrackId);
+        } else {
+            stopGlobalAudio();
+        }
     }
 
     async function deleteTrack(deezerId) {
@@ -981,6 +1168,11 @@ const Library = (function () {
         openDetail,
         openRandomSong,
         toggleDetailPreview,
+        toggleGlobalPlay,
+        stopGlobalAudio,
+        startRadioMode,
+        playNextRadioTrack,
+        playPrevRadioTrack,
         toggleInlinePlay,
         deleteTrack,
         toggleEditTags,

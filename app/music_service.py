@@ -114,3 +114,4 @@ async def download_cover(cover_url: str, deezer_id: str) -> str | None:
         print(f"Error downloading cover: {e}")
 
     return None
+

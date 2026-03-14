@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="A personal music collection — songs, collected.">
     <title>{% block title %}Music Library{% endblock %}</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=7">
+    <link rel="stylesheet" href="/static/css/style.css?v=9">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -60,6 +60,40 @@
             <div class="footer-tagline">songs, collected.</div>
         </div>
     </footer>
+
+    <!-- Global Audio Player -->
+    <audio id="global-audio" src="" preload="none"></audio>
+    <div id="now-playing-bar" class="now-playing-bar">
+        <div class="np-info">
+            <div class="np-cover-wrapper">
+                <img id="np-cover" src="" alt="" class="np-cover">
+                <div class="np-playing-fx">
+                    <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+                </div>
+            </div>
+            <div class="np-text">
+                <div id="np-title" class="np-title"></div>
+                <div id="np-artist" class="np-artist"></div>
+            </div>
+        </div>
+        <div class="np-controls">
+            <button class="np-btn" id="np-prev-btn" onclick="Library.playPrevRadioTrack()" title="Previous (Radio)">
+                <span class="material-symbols-outlined">skip_previous</span>
+            </button>
+            <button class="np-btn np-play-btn" id="np-play-btn" onclick="Library.toggleGlobalPlay()">
+                <span class="material-symbols-outlined" id="np-play-icon">play_arrow</span>
+            </button>
+            <button class="np-btn" id="np-next-btn" onclick="Library.playNextRadioTrack(true)" title="Next (Radio)">
+                <span class="material-symbols-outlined">skip_next</span>
+            </button>
+        </div>
+        <div class="np-actions">
+            <!-- Close audio entirely -->
+            <button class="np-btn" onclick="Library.stopGlobalAudio()" title="Stop Player">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+    </div>
 
     <script>
         document.getElementById('current-year').textContent = new Date().getFullYear();
