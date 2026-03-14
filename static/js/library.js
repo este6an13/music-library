@@ -15,6 +15,10 @@ const Library = (function () {
     let inlineAudio = null;
     let inlinePlayingId = null;
 
+    /* ── Playlist State ── */
+    let playlistMode = false;
+    let selectedPlaylistTracks = new Set(); // Stores deezer_id strings
+
     /* ── Initialization ── */
     function init(tracks) {
         allTracks = tracks;
@@ -90,13 +94,21 @@ const Library = (function () {
         let html = '<div class="track-grid">';
         tracks.forEach((track, ti) => {
             const delay = Math.min(ti * 0.04, 0.5);
-            html += '<div class="track-card skeleton-loading" data-deezer-id="' + escapeAttr(track.deezer_id) + '" onclick="Library.openDetail(\'' + escapeAttr(track.deezer_id) + '\')" role="button" tabindex="0" style="animation-delay: ' + delay + 's;">';
+            const isSelected = selectedPlaylistTracks.has(String(track.deezer_id));
+            const selectedClass = isSelected ? ' selected' : '';
+            html += '<div class="track-card skeleton-loading' + selectedClass + '" data-deezer-id="' + escapeAttr(track.deezer_id) + '" onclick="Library.openDetail(\'' + escapeAttr(track.deezer_id) + '\')" role="button" tabindex="0" style="animation-delay: ' + delay + 's;">';
             html += '<div class="track-cover-wrapper">';
             if (track.cover) {
                 html += '<img class="track-cover" src="/' + escapeAttr(track.cover) + '" alt="' + escapeAttr(track.title) + '" loading="lazy" onload="this.closest(\'.track-card\').classList.remove(\'skeleton-loading\')">';
             } else {
                 html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">♪</div>';
             }
+            
+            // Checkbox overlay for playlist mode
+            html += '<div class="playlist-checkbox ' + (isSelected ? 'checked' : '') + '">';
+            html += '<span class="material-symbols-outlined check-icon">check_circle</span>';
+            html += '</div>';
+
             html += '<div class="track-overlay"></div>';
             if (track.preview_url) {
                 html += '<button class="card-play-btn" data-deezer-id="' + escapeAttr(track.deezer_id) + '" onclick="event.stopPropagation(); Library.toggleInlinePlay(\'' + escapeAttr(track.deezer_id) + '\', this)" title="Play preview">';
@@ -273,8 +285,13 @@ const Library = (function () {
         clearFilterUI();
     }
 
-    /* ── Track Detail Modal ── */
+    /* ── Track Detail Modal or Playlist Selection ── */
     function openDetail(deezerId) {
+        if (playlistMode) {
+            toggleTrackSelection(deezerId);
+            return;
+        }
+
         const track = currentTracks.find(t => t.deezer_id === deezerId);
         if (!track) return;
 
@@ -618,6 +635,173 @@ const Library = (function () {
         }
     }
 
+    /* ── Playlist Functionality ── */
+    function togglePlaylistMode() {
+        playlistMode = !playlistMode;
+        const btn = document.getElementById('playlist-mode-btn');
+        const panel = document.getElementById('playlist-panel');
+        
+        if (playlistMode) {
+            btn.classList.add('active');
+            panel.style.display = 'flex';
+            document.body.classList.add('playlist-active');
+        } else {
+            btn.classList.remove('active');
+            panel.style.display = 'none';
+            document.body.classList.remove('playlist-active');
+            selectedPlaylistTracks.clear();
+            updatePlaylistUI();
+        }
+
+        // Re-render grid to show/hide checkboxes
+        if (browseMode !== 'none' && !browseFilter) {
+            renderBrowseGrid(browseMode);
+        } else {
+            renderTrackGrid(currentTracks);
+        }
+    }
+
+    function toggleTrackSelection(deezerId) {
+        const idStr = String(deezerId);
+        if (selectedPlaylistTracks.has(idStr)) {
+            selectedPlaylistTracks.delete(idStr);
+        } else {
+            selectedPlaylistTracks.add(idStr);
+        }
+        
+        // Update checkbox visually without re-rendering entire grid
+        const card = document.querySelector(`.track-card[data-deezer-id="${idStr}"]`);
+        if (card) {
+            if (selectedPlaylistTracks.has(idStr)) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+            
+            const checkbox = card.querySelector('.playlist-checkbox');
+            if (checkbox) {
+                if (selectedPlaylistTracks.has(idStr)) {
+                    checkbox.classList.add('checked');
+                } else {
+                    checkbox.classList.remove('checked');
+                }
+            }
+        }
+        updatePlaylistUI();
+    }
+
+    function updatePlaylistUI() {
+        const countSpan = document.getElementById('playlist-count');
+        const container = document.getElementById('playlist-items-container');
+        if (!countSpan || !container) return;
+
+        countSpan.textContent = `${selectedPlaylistTracks.size} tracks selected`;
+
+        if (selectedPlaylistTracks.size === 0) {
+            container.innerHTML = `<div class="empty-state" style="padding: 1rem 0; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+                Click on songs in the library to add them to your playlist.
+            </div>`;
+            return;
+        }
+
+        let html = '';
+        const selectedIds = Array.from(selectedPlaylistTracks);
+        
+        // Match IDs back to track objects, maintaining insertion order
+        const tracks = selectedIds.map(id => allTracks.find(t => String(t.deezer_id) === id)).filter(Boolean);
+
+        tracks.forEach(track => {
+            html += `<div class="playlist-item">
+                        <div class="playlist-item-info">
+                            <span class="playlist-item-title" title="${escapeAttr(track.title)}">${escapeHtml(track.title)}</span>
+                            <span class="playlist-item-artist" title="${escapeAttr(track.artist)}">${escapeHtml(track.artist)}</span>
+                        </div>
+                        <button class="playlist-item-remove" onclick="Library.toggleTrackSelection('${escapeAttr(track.deezer_id)}')" title="Remove">
+                            <span class="material-symbols-outlined" style="font-size: 1.2rem;">close</span>
+                        </button>
+                    </div>`;
+        });
+        
+        container.innerHTML = html;
+        // Scroll to bottom
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function clearPlaylist() {
+        selectedPlaylistTracks.clear();
+        updatePlaylistUI();
+        
+        // Remove 'checked' classes from grid
+        document.querySelectorAll('.playlist-checkbox.checked').forEach(el => {
+            el.classList.remove('checked');
+        });
+        document.querySelectorAll('.track-card.selected').forEach(el => {
+            el.classList.remove('selected');
+        });
+    }
+
+    function exportPlaylist(format) {
+        if (selectedPlaylistTracks.size === 0) {
+            alert('Please select some tracks first.');
+            return;
+        }
+
+        const input = document.getElementById('playlist-name-input');
+        let filename = input ? input.value.trim() : '';
+        if (!filename) filename = 'My Playlist';
+
+        const selectedIds = Array.from(selectedPlaylistTracks);
+        const tracks = selectedIds.map(id => allTracks.find(t => String(t.deezer_id) === id)).filter(Boolean);
+
+        let content = '';
+        let mimeType = 'text/plain';
+
+        if (format === 'm3u') {
+            content += '#EXTM3U\n';
+            tracks.forEach(t => {
+                const durationInfo = t.duration ? Math.round(t.duration) : -1;
+                content += `#EXTINF:${durationInfo},${t.artist} - ${t.title}\n`;
+                // M3U usually contains file paths. Since we only have Deezer IDs/URLs locally, 
+                // we provide a Deezer link as the URI. TuneMyMusic can often parse these.
+                content += `https://www.deezer.com/track/${t.deezer_id}\n`;
+            });
+            mimeType = 'audio/x-mpegurl';
+            filename += '.m3u';
+        } 
+        else if (format === 'csv') {
+            content += 'Track Name,Artist Name,Album,ISRC\n';
+            tracks.forEach(t => {
+                // Escape quotes
+                const title = `"${(t.title || '').replace(/"/g, '""')}"`;
+                const artist = `"${(t.artist || '').replace(/"/g, '""')}"`;
+                const album = `"${(t.album || '').replace(/"/g, '""')}"`;
+                const isrc = t.isrc || '';
+                content += `${title},${artist},${album},${isrc}\n`;
+            });
+            mimeType = 'text/csv';
+            filename += '.csv';
+        }
+        else if (format === 'txt') {
+            // Simple artist - title format is very broadly compatible
+            tracks.forEach(t => {
+                content += `${t.artist} - ${t.title}\n`;
+            });
+            filename += '.txt';
+        }
+
+        downloadBlob(content, filename, mimeType);
+    }
+
+    function downloadBlob(content, filename, mimeType) {
+        const a = document.createElement('a');
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        a.setAttribute('href', url);
+        a.setAttribute('download', filename);
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     /* ── Helpers ── */
     function escapeHtml(str) {
         if (!str) return '';
@@ -647,5 +831,9 @@ const Library = (function () {
         removeEditTag,
         cancelEditTags,
         saveTags,
+        togglePlaylistMode,
+        toggleTrackSelection,
+        clearPlaylist,
+        exportPlaylist
     };
 })();
