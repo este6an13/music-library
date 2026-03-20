@@ -124,7 +124,7 @@ const Library = (function () {
             } else {
                 html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">♪</div>';
             }
-            
+
             // Checkbox overlay for playlist mode
             html += '<div class="playlist-checkbox ' + (isSelected ? 'checked' : '') + '">';
             html += '<span class="material-symbols-outlined check-icon">check_circle</span>';
@@ -356,15 +356,15 @@ const Library = (function () {
 
         // Links
         html += '<div class="detail-links">';
-        
+
         let queryStr = encodeURIComponent(track.artist + ' ' + track.title);
         if (track.isrc) {
-             queryStr = "isrc:" + track.isrc;
+            queryStr = "isrc:" + track.isrc;
         }
 
         html += '<a href="https://www.deezer.com/track/' + escapeAttr(track.deezer_id) + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Open in Deezer">';
         html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">graphic_eq</span><span class="detail-link-text">Deezer</span></a>';
-        
+
         html += '<a href="https://open.spotify.com/search/' + queryStr + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Search on Spotify">';
         html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">headphones</span><span class="detail-link-text">Spotify</span></a>';
 
@@ -411,7 +411,7 @@ const Library = (function () {
     /* ── Global Audio Player Logic ── */
     function toggleGlobalPlay() {
         if (!globalAudio || !globalAudio.src) return;
-        
+
         if (globalAudio.paused) {
             globalAudio.play();
         } else {
@@ -425,11 +425,11 @@ const Library = (function () {
         globalAudio.currentTime = 0;
         currentPlayingId = null;
         isRadioMode = false;
-        
+
         // Hide bar
         document.getElementById('now-playing-bar').classList.remove('active');
         document.getElementById('now-playing-bar').classList.remove('is-playing');
-        
+
         // Reset all grid buttons
         document.querySelectorAll('.card-play-btn .material-symbols-outlined').forEach(icon => {
             icon.textContent = 'play_arrow';
@@ -452,7 +452,7 @@ const Library = (function () {
         }
 
         currentPlayingId = deezerId;
-        
+
         // Eagerly update UI
         document.getElementById('np-title').textContent = track.title;
         document.getElementById('np-artist').textContent = track.artist;
@@ -462,7 +462,7 @@ const Library = (function () {
             document.getElementById('np-cover').src = '';
         }
         document.getElementById('now-playing-bar').classList.add('active');
-        
+
         // Show loading state while fetching fresh URL (optional UI flair, or simply enforce play icon)
         const npIcon = document.getElementById('np-play-icon');
         if (npIcon) npIcon.textContent = 'hourglass_empty';
@@ -475,21 +475,29 @@ const Library = (function () {
             });
             if (!resp.ok) throw new Error("Network request failed");
             const freshData = await resp.json();
-            
+
             if (!freshData.preview_url) {
-                alert("No preview is available for this track on Deezer.");
-                stopGlobalAudio();
+                if (isRadioMode) {
+                    playNextRadioTrack(true);
+                } else {
+                    alert("No preview is available for this track on Deezer.");
+                    stopGlobalAudio();
+                }
                 return;
             }
             // Update the stored url so next time it might work without fetch if played immediately (though we always fetch)
             track.preview_url = freshData.preview_url;
-            
+
             globalAudio.src = freshData.preview_url;
             await globalAudio.play();
         } catch (e) {
             console.error("Error loading fresh preview:", e);
-            alert("Could not load song preview from Deezer.");
-            stopGlobalAudio();
+            if (isRadioMode) {
+                playNextRadioTrack(true);
+            } else {
+                alert("Could not load song preview from Deezer.");
+                stopGlobalAudio();
+            }
             return;
         }
 
@@ -504,7 +512,7 @@ const Library = (function () {
         const isPaused = globalAudio.paused;
         const npIcon = document.getElementById('np-play-icon');
         const npBar = document.getElementById('now-playing-bar');
-        
+
         if (npIcon) npIcon.textContent = isPaused ? 'play_arrow' : 'pause';
         if (isPaused) {
             npBar.classList.remove('is-playing');
@@ -527,25 +535,26 @@ const Library = (function () {
 
     function toggleInlinePlay(deezerId, btn) {
         // If user clicks a track in the grid, disable radio mode so it doesn't auto-skip when ended.
-        isRadioMode = false; 
+        isRadioMode = false;
         playTrack(deezerId);
     }
 
     /* ── Autoplay Radio Engine ── */
     function startRadioMode() {
-        if (!allTracks || allTracks.length === 0) {
-            alert("Library is empty. Cannot start radio.");
+        const playableTracks = allTracks.filter(t => t.preview_url);
+        if (!playableTracks || playableTracks.length === 0) {
+            alert("Library has no playable songs (no previews available). Cannot start radio.");
             return;
         }
         isRadioMode = true;
-        // Start with a totally random track if not already playing
-        let startIndex = Math.floor(Math.random() * allTracks.length);
+        // Start with a totally random playable track if not already playing
+        let startIndex = Math.floor(Math.random() * playableTracks.length);
         if (currentPlayingId) {
             // Already playing something, just ensure radio mode is active and we continue.
             alert("Radio mode activated from current track.");
             return;
         }
-        playTrack(allTracks[startIndex].deezer_id);
+        playTrack(playableTracks[startIndex].deezer_id);
     }
 
     function playPrevRadioTrack() {
@@ -566,16 +575,16 @@ const Library = (function () {
     function playNextRadioTrack(manualSkip = false) {
         if (!isRadioMode && !manualSkip) return; // shouldn't happen via organic ended event but safety check
         isRadioMode = true; // force if manual skip
-        
+
         const currentTrack = allTracks.find(t => t.deezer_id === currentPlayingId);
         let bestScore = -1;
         let nextTrackId = null;
 
         // Ensure we only select from tracks possessing a preview URL and not recently played
         const recentHistory = radioHistory.slice(-10); // Don't repeat last 10 songs
-        
+
         const candidatePool = allTracks.filter(t => t.preview_url && !recentHistory.includes(t.deezer_id));
-        
+
         if (candidatePool.length === 0) {
             // We exhausted the pool or the library is very small. Clear history and pick randomly.
             radioHistory = [currentPlayingId];
@@ -605,17 +614,17 @@ const Library = (function () {
                         else if (diff <= 10) score += 1;
                     }
                 }
-                
+
                 // Add Temperature (0.0 to 3.0 points) to break deterministic loops
                 score += (Math.random() * 3.0);
-                
+
                 if (score > bestScore) {
                     bestScore = score;
                     nextTrackId = candidate.deezer_id;
                 }
             });
         }
-        
+
         if (nextTrackId) {
             playTrack(nextTrackId);
         } else {
@@ -650,14 +659,14 @@ const Library = (function () {
             if (resp.ok) {
                 const data = await resp.json();
                 const updatedTrack = data.track;
-                
+
                 // Update track in allTracks and currentTracks
                 allTracks = allTracks.map(t => t.deezer_id === deezerId ? updatedTrack : t);
                 currentTracks = currentTracks.map(t => t.deezer_id === deezerId ? updatedTrack : t);
 
                 // Update detail modal UI
                 openDetail(deezerId);
-                
+
                 // Refresh grid to reflect potentially new cover
                 if (browseMode !== 'none' || browseFilter) {
                     applyFiltersAndRender();
@@ -681,7 +690,7 @@ const Library = (function () {
                 html += '<button class="detail-tag" onclick="event.stopPropagation(); Library.setTag(\'' + escapeAttr(tag) + '\'); window.closeModal();">' + escapeHtml(tag) + '</button>';
             });
         }
-        
+
         // Only show edit button if in Admin Mode
         if (window.__ADMIN_MODE) {
             html += '<button class="detail-tag detail-tag-edit" onclick="event.stopPropagation(); Library.toggleEditTags(\'' + escapeAttr(track.deezer_id) + '\')" title="Edit tags" style="padding: 0.2rem 0.5rem; background: var(--bg-hover);"><span class="material-symbols-outlined" style="font-size: 1.1rem; vertical-align: middle;">edit</span></button>';
@@ -702,7 +711,7 @@ const Library = (function () {
         activeEditTags = [...(track.tags || [])];
 
         renderTagEditor();
-        
+
         // Focus input automatically
         setTimeout(() => {
             const input = document.getElementById('edit-tag-input-field');
@@ -715,10 +724,10 @@ const Library = (function () {
         if (!container) return;
 
         let html = '<div class="tag-edit-area" style="margin-top: 0.5rem;">';
-        
+
         // Chip container
         html += '<div class="tag-input-container" id="inline-tag-input-container" style="background: var(--bg-secondary); border-color: var(--border-hover);">';
-        
+
         activeEditTags.forEach((tag, index) => {
             html += `<div class="tag-chip" style="margin: 0.2rem;">
                         <span>${escapeHtml(tag)}</span>
@@ -735,7 +744,7 @@ const Library = (function () {
         html += `<button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="Library.cancelEditTags('${escapeAttr(activeEditDeezerId)}')">Cancel</button>`;
         html += `<button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="Library.saveTags('${escapeAttr(activeEditDeezerId)}')">Save</button>`;
         html += '</div>';
-        
+
         html += '</div>';
 
         container.innerHTML = html;
@@ -772,10 +781,10 @@ const Library = (function () {
     function cancelEditTags(deezerId) {
         const track = allTracks.find(t => t.deezer_id === deezerId);
         if (!track) return;
-        
+
         activeEditDeezerId = null;
         activeEditTags = [];
-        
+
         const container = document.getElementById('detail-tags-container');
         if (container) {
             container.innerHTML = renderTagsUI(track);
@@ -787,7 +796,7 @@ const Library = (function () {
         if (!track) return;
 
         track.tags = [...activeEditTags];
-        
+
         // Revert UI to display mode with new tags
         cancelEditTags(deezerId);
 
@@ -875,7 +884,7 @@ const Library = (function () {
         playlistMode = !playlistMode;
         const btn = document.getElementById('playlist-mode-btn');
         const panel = document.getElementById('playlist-panel');
-        
+
         if (playlistMode) {
             btn.classList.add('active');
             panel.style.display = 'flex';
@@ -903,7 +912,7 @@ const Library = (function () {
         } else {
             selectedPlaylistTracks.add(idStr);
         }
-        
+
         // Update checkbox visually without re-rendering entire grid
         const card = document.querySelector(`.track-card[data-deezer-id="${idStr}"]`);
         if (card) {
@@ -912,7 +921,7 @@ const Library = (function () {
             } else {
                 card.classList.remove('selected');
             }
-            
+
             const checkbox = card.querySelector('.playlist-checkbox');
             if (checkbox) {
                 if (selectedPlaylistTracks.has(idStr)) {
@@ -941,7 +950,7 @@ const Library = (function () {
 
         let html = '';
         const selectedIds = Array.from(selectedPlaylistTracks);
-        
+
         // Match IDs back to track objects, maintaining insertion order
         const tracks = selectedIds.map(id => allTracks.find(t => String(t.deezer_id) === id)).filter(Boolean);
 
@@ -956,7 +965,7 @@ const Library = (function () {
                         </button>
                     </div>`;
         });
-        
+
         container.innerHTML = html;
         // Scroll to bottom
         container.scrollTop = container.scrollHeight;
@@ -965,7 +974,7 @@ const Library = (function () {
     function clearPlaylist() {
         selectedPlaylistTracks.clear();
         updatePlaylistUI();
-        
+
         // Remove 'checked' classes from grid
         document.querySelectorAll('.playlist-checkbox.checked').forEach(el => {
             el.classList.remove('checked');
@@ -1002,7 +1011,7 @@ const Library = (function () {
             });
             mimeType = 'audio/x-mpegurl';
             filename += '.m3u';
-        } 
+        }
         else if (format === 'csv') {
             content += 'Track Name,Artist Name,Album,ISRC\n';
             tracks.forEach(t => {
@@ -1049,7 +1058,7 @@ const Library = (function () {
             if (t.artist) artistSet.add(t.artist);
         });
         const uniqueTags = Array.from(tagSet).sort();
-        const uniqueArtists = Array.from(artistSet).sort((a,b) => a.localeCompare(b));
+        const uniqueArtists = Array.from(artistSet).sort((a, b) => a.localeCompare(b));
 
         let html = '<div class="detail-card" style="padding: 1.5rem;">';
         html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">';
@@ -1106,7 +1115,7 @@ const Library = (function () {
         const input = document.getElementById('random-artist-input');
         const val = input.value.trim();
         if (!val) return;
-        
+
         const container = document.getElementById('random-artist-chips');
         // Check if already added
         const existing = Array.from(container.querySelectorAll('.random-chip')).map(el => el.textContent.replace(' ×', '').trim());
@@ -1119,9 +1128,9 @@ const Library = (function () {
         btn.type = 'button';
         btn.className = 'random-chip artist-filter-chip selected';
         btn.innerHTML = `${escapeHtml(val)} &times;`;
-        btn.onclick = function() { this.remove(); };
+        btn.onclick = function () { this.remove(); };
         container.appendChild(btn);
-        
+
         input.value = '';
     }
 
@@ -1130,10 +1139,10 @@ const Library = (function () {
         const sizeInput = document.getElementById('random-mix-size');
         if (!sizeInput) return;
         const size = parseInt(sizeInput.value, 10);
-        
+
         const artistChips = Array.from(document.querySelectorAll('#random-artist-chips .artist-filter-chip'));
         const targetArtists = new Set(artistChips.map(el => el.textContent.replace(' ×', '').trim()).filter(Boolean));
-        
+
         const tagChips = Array.from(document.querySelectorAll('.tag-filter-chip.selected'));
         const targetTags = new Set(tagChips.map(el => el.textContent.trim()).filter(Boolean));
 
@@ -1168,9 +1177,9 @@ const Library = (function () {
 
         // Update UI
         Library.clearPlaylist(); // Clear previous selections & UI
-        
+
         selectedSubset.forEach(t => selectedPlaylistTracks.add(String(t.deezer_id)));
-        
+
         closeModal();
         updatePlaylistUI();
 
@@ -1184,20 +1193,20 @@ const Library = (function () {
 
     async function syncDatabase() {
         if (!confirm('Sync local data to Google Cloud Storage?')) return;
-        
+
         const btn = document.getElementById('sync-db-btn');
         const icon = document.getElementById('sync-icon');
         const textSpan = btn ? btn.querySelector('.nav-link-text') : null;
         const oldText = textSpan ? textSpan.textContent : 'sync';
         let originalIcon = 'cloud_sync';
-        
+
         if (textSpan) textSpan.textContent = 'syncing...';
         if (icon) {
             originalIcon = icon.textContent;
             icon.textContent = 'sync';
             icon.style.animation = 'spin 1s linear infinite';
         }
-        
+
         try {
             const resp = await fetch('/api/sync', { method: 'POST' });
             if (resp.ok) {
