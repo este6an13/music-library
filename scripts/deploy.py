@@ -55,7 +55,7 @@ def main():
 
     # Step 2: Construct the gcloud command for building and deploying
     print("\nExecuting deployment...")
-    env_vars = f"ADMIN_MODE=false"
+    env_vars = f"ADMIN_MODE=false,GCP_DATA_BUCKET_NAME={data_bucket}"
 
     cmd = [
         "gcloud", "run", "deploy", service_name,

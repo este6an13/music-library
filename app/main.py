@@ -31,7 +31,16 @@ from .music_service import get_deezer_track, download_cover
 load_dotenv()
 ADMIN_MODE = os.getenv("ADMIN_MODE", "false").lower() == "true"
 
+GCP_DATA_BUCKET_NAME = os.getenv("GCP_DATA_BUCKET_NAME", "")
+
 app = FastAPI(title="Music Library")
+
+def get_image_base_url() -> str:
+    """Compute the base URL for serving cover images."""
+    if GCP_DATA_BUCKET_NAME:
+        return f"https://storage.googleapis.com/{GCP_DATA_BUCKET_NAME}/"
+    return "/"
+
 
 # --- Static files & templates ---
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -64,27 +73,10 @@ def _write_library(tracks: list[dict]):
     LIBRARY_FILE.write_text(json.dumps(tracks, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-# --- Middleware ---
-@app.middleware("http")
-async def add_cache_headers(request: Request, call_next):
-    response = await call_next(request)
-    if request.url.path.startswith("/covers/"):
-        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-    return response
-
-
 # --- Startup ---
 @app.on_event("startup")
 async def startup_event():
     _ensure_data_dir()
-
-
-# --- Serve cover images ---
-@app.on_event("startup")
-async def mount_covers():
-    """Mount covers directory after ensuring it exists."""
-    _ensure_data_dir()
-    app.mount("/covers", StaticFiles(directory=str(COVERS_DIR)), name="covers")
 
 
 # --- Routes ---
@@ -94,10 +86,11 @@ async def library_page(request: Request):
     """Library page — serves all tracks as embedded JSON."""
     tracks = _read_library()
     tracks_json = json.dumps(tracks, ensure_ascii=False)
-    return templates.TemplateResponse("library.html", {
+    return templates.TemplateResponse(request=request, name="library.html", context={
         "request": request,
         "tracks_json": tracks_json,
         "admin_mode": ADMIN_MODE,
+        "image_base_url": get_image_base_url(),
     })
 
 
@@ -106,7 +99,7 @@ async def add_page(request: Request):
     """Add song page."""
     if not ADMIN_MODE:
         return RedirectResponse(url="/", status_code=303)
-    return templates.TemplateResponse("add.html", {"request": request, "admin_mode": ADMIN_MODE})
+    return templates.TemplateResponse(request=request, name="add.html", context={"request": request, "admin_mode": ADMIN_MODE})
 
 
 class FetchTrackRequest(BaseModel):

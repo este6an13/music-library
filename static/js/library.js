@@ -121,7 +121,8 @@ const Library = (function () {
             html += '<div class="track-card skeleton-loading' + selectedClass + '" data-deezer-id="' + Utils.escapeAttr(track.deezer_id) + '" onclick="Library.openDetail(\'' + Utils.escapeAttr(track.deezer_id) + '\')" role="button" tabindex="0" style="animation-delay: ' + delay + 's;">';
             html += '<div class="track-cover-wrapper">';
             if (track.cover) {
-                html += '<img class="track-cover" src="/' + Utils.escapeAttr(track.cover) + '" alt="' + Utils.escapeAttr(track.title) + '" loading="lazy" onload="this.closest(\'.track-card\').classList.remove(\'skeleton-loading\')">';
+                const imgBase = window.IMAGE_BASE_URL || '/';
+                html += '<img class="track-cover" src="' + imgBase + Utils.escapeAttr(track.cover) + '" alt="' + Utils.escapeAttr(track.title) + '" loading="lazy" onload="this.closest(\'.track-card\').classList.remove(\'skeleton-loading\')">';
             } else {
                 html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">♪</div>';
             }
@@ -203,7 +204,8 @@ const Library = (function () {
             html += '<div class="browse-card" onclick="Library.selectBrowseItem(\'' + escapedName + '\')" role="button" tabindex="0" style="animation-delay: ' + delay + 's;">';
             html += '<div class="browse-cover-wrapper">';
             if (cat.cover) {
-                html += '<img class="browse-cover" src="/' + Utils.escapeAttr(cat.cover) + '" alt="' + Utils.escapeAttr(cat.name) + '" loading="lazy">';
+                const imgBase = window.IMAGE_BASE_URL || '/';
+                html += '<img class="browse-cover" src="' + imgBase + Utils.escapeAttr(cat.cover) + '" alt="' + Utils.escapeAttr(cat.name) + '" loading="lazy">';
             } else {
                 html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">♪</div>';
             }
@@ -314,7 +316,8 @@ const Library = (function () {
         // Cover
         html += '<div class="detail-cover-wrapper">';
         if (track.cover) {
-            html += '<img class="detail-cover" src="/' + Utils.escapeAttr(track.cover) + '" alt="' + Utils.escapeAttr(track.title) + '">';
+            const imgBase = window.IMAGE_BASE_URL || '/';
+            html += '<img class="detail-cover" src="' + imgBase + Utils.escapeAttr(track.cover) + '" alt="' + Utils.escapeAttr(track.title) + '">';
         }
         if (track.preview_url) {
             html += '<button class="detail-play-btn" data-deezer-id="' + Utils.escapeAttr(track.deezer_id) + '" onclick="Library.toggleDetailPreview(\'' + Utils.escapeAttr(track.deezer_id) + '\')" title="Play preview">';
