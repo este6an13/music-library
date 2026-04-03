@@ -22,7 +22,6 @@
             <a href="/" class="site-logo">&#9835; library</a>
             <nav class="site-nav">
                 {% block header_controls %}{% endblock %}
-                {% if admin_mode == True %}
                 <div class="nav-dropdown">
                     <button class="nav-link nav-dropdown-btn"
                         onclick="document.getElementById('export-menu').classList.toggle('active')">
@@ -35,6 +34,7 @@
                         <a href="/api/export/xlsx" class="nav-dropdown-item" title="Export as XLSX">XLSX</a>
                     </div>
                 </div>
+                {% if admin_mode == True %}
                 <button class="nav-link" id="sync-db-btn" onclick="Library.syncDatabase()"
                     style="background: none; border: none; cursor: pointer;">
                     <span class="material-symbols-outlined" id="sync-icon">cloud_sync</span>

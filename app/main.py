@@ -437,13 +437,16 @@ async def export_library(fmt: str):
         ])
 
     if fmt == "csv":
-        output = io.StringIO()
-        writer = csv.writer(output)
+        output = io.BytesIO()
+        # Write UTF-8 BOM so Excel/spreadsheet apps detect the encoding correctly
+        wrapper = io.TextIOWrapper(output, encoding="utf-8-sig", newline="")
+        writer = csv.writer(wrapper)
         writer.writerow(headers)
         writer.writerows(rows)
+        wrapper.flush()
         return Response(
             content=output.getvalue(),
-            media_type="text/csv",
+            media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
         
