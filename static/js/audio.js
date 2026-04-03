@@ -57,11 +57,8 @@ const AudioPlayer = (function () {
         // Update Now Playing bar UI eagerly
         document.getElementById('np-title').textContent = track.title;
         document.getElementById('np-artist').textContent = track.artist;
-        if (track.cover) {
-            document.getElementById('np-cover').src = '/' + track.cover;
-        } else {
-            document.getElementById('np-cover').src = '';
-        }
+        const imgBase = window.IMAGE_BASE_URL || '/';
+        document.getElementById('np-cover').src = track.cover ? imgBase + track.cover : '';
         document.getElementById('now-playing-bar').classList.add('active');
 
         // Show loading indicator
